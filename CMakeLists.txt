@@ -1,0 +1,37 @@
+cmake_minimum_required(VERSION 3.12)
+project(nginx_balancer C)
+
+set(CMAKE_C_STANDARD 11)
+
+
+
+MACRO(SUBDIRLIST result curdir)
+    FILE(GLOB children RELATIVE ${curdir} ${curdir}/*)
+    SET(dirlist "")
+    FOREACH(child ${children})
+#        message("foreach: " ${child})
+        IF(IS_DIRECTORY ${curdir}/${child})
+            LIST(APPEND dirlist "${curdir}/${child}")
+        ENDIF()
+    ENDFOREACH()
+    SET(${result} ${dirlist})
+ENDMACRO()
+MACRO(INCLUDE_ALL d)
+    SUBDIRLIST(SUBDIRS ${d})
+    FOREACH(subdir ${SUBDIRS})
+        message("include: " ${subdir})
+        include_directories(${subdir})
+    ENDFOREACH()
+ENDMACRO()
+INCLUDE_ALL(/home/mugutdinov/nginx-1.15.8)
+INCLUDE_ALL(/home/mugutdinov/nginx-1.15.8/src)
+INCLUDE_ALL(/home/mugutdinov/nginx-1.15.8/src/http)
+INCLUDE_ALL(/home/mugutdinov/nginx-1.15.8/src/os)
+INCLUDE_ALL(/home/mugutdinov/nginx-1.15.8/objs)
+
+
+get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+foreach(dir ${dirs})
+    message(STATUS "dir='${dir}'")
+endforeach()
+add_library(nginx_balancer ngx_http_balancer_module.c utils.h utils.c)
