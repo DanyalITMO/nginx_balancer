@@ -331,6 +331,9 @@ ngx_http_upstream_get_hash_peer(ngx_peer_connection_t *pc, void *data)
     {
         if(uhpd->peers->peer[index].process_time > uhpd->peers->peer[i].process_time)
             index = i;
+        else if(uhpd->peers->peer[index].process_time == uhpd->peers->peer[i].process_time)
+            if(uhpd->peers->peer[index].list->len > uhpd->peers->peer[i].list->len)
+                index = i;
     }
 
     if (0 == checkFreeMemoryEnough(uhpd->peers->peer[index], uhpd->size)) {
