@@ -12,7 +12,7 @@ typedef struct {
     ngx_uint_t                      down;
     ngx_int_t                       weight;
     size_t                          total_memory;
-    int                             process_time;
+    double                          process_time;
     list_t                          *list;
 } ngx_http_upstrm_hash_peer_t;
 
@@ -204,11 +204,12 @@ ngx_http_upstream_init_hash(ngx_conf_t *cf, ngx_http_upstream_srv_conf_t *us)
             peers->peer[n].sockaddr = server[i].addrs[j].sockaddr;
             peers->peer[n].socklen = server[i].addrs[j].socklen;
             peers->peer[n].name = server[i].addrs[j].name;
-            fprintf(stderr, "peer name %s\n", (char*)peers->peer[n].name.data);
+            fprintf(stderr, "peer name: %s\n", (char*)peers->peer[n].name.data);
             peers->peer[n].down = server[i].down;
             peers->peer[n].weight = server[i].weight;
-            fprintf(stderr, "peer weight %d\n", (int)server[i].weight);
-            peers->peer[n].total_memory = 1000000000;
+            fprintf(stderr, "peer weight: %d\n", (int)server[i].weight);
+            peers->peer[n].total_memory = (size_t)peers->peer[n].weight * 1000;
+            fprintf(stderr, "peer total memory: %lu\n", peers->peer[n].total_memory);
             peers->peer[n].list = list_new();
 
             n++;
@@ -267,19 +268,23 @@ ngx_http_upstream_init_hash_peer(ngx_http_request_t *r,
     }
     uhpd->size = fsize(fp);
     fclose(fp);
+
+    double load_time = uhpd->size / 100000000;//100 mb/s
+    fprintf(stderr, "load time %f\n", load_time);
+
     bool have_possible = false;
     for(int i = 0; i < (int)uhpd->peers->number; i++)
     {
+        uhpd->peers->peer[i].process_time = load_time * 0.1; //10% for calculation
         list_node_t *node = find(uhpd->peers->peer[i].list, uhpd->file);
         if (node != NULL) {
 //            fprintf(stderr, "######hit the cache\n");
-            uhpd->peers->peer[i].process_time = 0;
             have_possible = true;
         } else
         {
             if(uhpd->peers->peer[i].total_memory >= (size_t)uhpd->size)
                 have_possible = true;
-            uhpd->peers->peer[i].process_time = 100; //change to calculate time
+            uhpd->peers->peer[i].process_time += load_time; //change to calculate time
         }
     }
 
