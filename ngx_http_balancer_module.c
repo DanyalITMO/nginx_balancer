@@ -13,7 +13,9 @@ typedef struct {
     ngx_int_t                       weight;
     size_t                          total_memory;
     double                          process_time;
+    double                          additional_time;
     list_t                          *list;
+    size_t                          stats;
 } ngx_http_upstrm_hash_peer_t;
 
 typedef struct {
@@ -102,7 +104,7 @@ ngx_module_t ngx_http_upstrm_hash_module = {
 static char *
 ngx_http_upstrm_hash(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    fprintf(stderr, "ngx_http_upstrm_hash 1\n");
+//    fprintf(stderr, "ngx_http_upstrm_hash 1\n");
 
     ngx_http_upstream_srv_conf_t   *uscf;
     ngx_http_script_compile_t       sc;
@@ -111,7 +113,7 @@ ngx_http_upstrm_hash(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 //    ngx_http_upstrm_hash_conf_t  *uhcf;
 
     value = cf->args->elts;
-    fprintf(stderr, "ngx_http_upstrm_hash 2\n");
+//    fprintf(stderr, "ngx_http_upstrm_hash 2\n");
 
 
     ngx_memzero(&sc, sizeof(ngx_http_script_compile_t));
@@ -125,7 +127,7 @@ ngx_http_upstrm_hash(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     sc.values = &vars_values;
     sc.complete_lengths = 1;
     sc.complete_values = 1;
-    fprintf(stderr, "ngx_http_upstrm_hash 3\n");
+//    fprintf(stderr, "ngx_http_upstrm_hash 3\n");
 
     if (ngx_http_script_compile(&sc) != NGX_OK) {
         return NGX_CONF_ERROR;
@@ -135,7 +137,7 @@ ngx_http_upstrm_hash(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     uscf->peer.init_upstream = ngx_http_upstream_init_hash;
 
-    fprintf(stderr, "ngx_http_upstrm_hash 4\n");
+//    fprintf(stderr, "ngx_http_upstrm_hash 4\n");
 
     uscf->flags = NGX_HTTP_UPSTREAM_CREATE
                   |NGX_HTTP_UPSTREAM_WEIGHT
@@ -143,7 +145,7 @@ ngx_http_upstrm_hash(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 //    uhcf = ngx_http_conf_upstream_srv_conf(uscf, ngx_http_upstrm_hash_module);
 
-    fprintf(stderr, "ngx_http_upstrm_hash 5\n");
+//    fprintf(stderr, "ngx_http_upstrm_hash 5\n");
 //    uhcf->values = vars_values->elts;
 //    uhcf->lengths = vars_lengths->elts;
 
@@ -153,7 +155,7 @@ ngx_http_upstrm_hash(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 static ngx_int_t
 ngx_http_upstream_init_hash(ngx_conf_t *cf, ngx_http_upstream_srv_conf_t *us)
 {
-    fprintf(stderr, "ngx_http_upstream_init_hash\n");
+//    fprintf(stderr, "ngx_http_upstream_init_hash\n");
 
     ngx_uint_t                       i, j, n, w;
     ngx_http_upstream_server_t      *server;
@@ -208,7 +210,7 @@ ngx_http_upstream_init_hash(ngx_conf_t *cf, ngx_http_upstream_srv_conf_t *us)
             peers->peer[n].down = server[i].down;
             peers->peer[n].weight = server[i].weight;
             fprintf(stderr, "peer weight: %d\n", (int)server[i].weight);
-            peers->peer[n].total_memory = (size_t)peers->peer[n].weight * 1000;
+            peers->peer[n].total_memory = (size_t)peers->peer[n].weight * 1000000000;
             fprintf(stderr, "peer total memory: %lu\n", peers->peer[n].total_memory);
             peers->peer[n].list = list_new();
 
@@ -239,7 +241,7 @@ static ngx_int_t
 ngx_http_upstream_init_hash_peer(ngx_http_request_t *r,
                                  ngx_http_upstream_srv_conf_t *us)
 {
-    fprintf(stderr, "ngx_http_upstream_init_hash_peer\n");
+//    fprintf(stderr, "ngx_http_upstream_init_hash_peer\n");
 
     ngx_http_upstrm_hash_peer_data_t     *uhpd;
 //    fprintf(stderr, "1\n");
@@ -270,21 +272,21 @@ ngx_http_upstream_init_hash_peer(ngx_http_request_t *r,
     fclose(fp);
 
     double load_time = uhpd->size / 100000000;//100 mb/s
-    fprintf(stderr, "load time %f\n", load_time);
+//    fprintf(stderr, "load time %f\n", load_time);
 
     bool have_possible = false;
     for(int i = 0; i < (int)uhpd->peers->number; i++)
     {
-        uhpd->peers->peer[i].process_time = load_time * 0.1; //10% for calculation
+        uhpd->peers->peer[i].additional_time = (load_time * 0.1) / uhpd->peers->peer[i].weight; //10% for calculation * weight
         list_node_t *node = find(uhpd->peers->peer[i].list, uhpd->file);
-        if (node != NULL) {
+        if (node != NULL) { // если такой файл загружен в озу
 //            fprintf(stderr, "######hit the cache\n");
             have_possible = true;
-        } else
+        } else//есил не загружен
         {
             if(uhpd->peers->peer[i].total_memory >= (size_t)uhpd->size)
                 have_possible = true;
-            uhpd->peers->peer[i].process_time += load_time; //change to calculate time
+            uhpd->peers->peer[i].additional_time += load_time; //change to calculate time
         }
     }
 
@@ -323,10 +325,15 @@ uint8_t checkFreeMemoryEnough(ngx_http_upstrm_hash_peer_t peer, size_t file_size
 
 //разобраться с осовбождением из памяти нужного места
 //разобраться , если памяти не хватает
+
+void print_stats()
+{
+
+}
 static ngx_int_t
 ngx_http_upstream_get_hash_peer(ngx_peer_connection_t *pc, void *data)
 {
-    fprintf(stderr, "ngx_http_upstream_get_hash_peer\n");
+//    fprintf(stderr, "ngx_http_upstream_get_hash_peer\n");
 
     ngx_http_upstrm_hash_peer_data_t  *uhpd = data;
     ngx_http_upstrm_hash_peer_t       *peer;
@@ -334,12 +341,16 @@ ngx_http_upstream_get_hash_peer(ngx_peer_connection_t *pc, void *data)
     int index = 0;
     for(int i = 1; i < (int)uhpd->peers->number; i++)
     {
-        if(uhpd->peers->peer[index].process_time > uhpd->peers->peer[i].process_time)
+//        fprintf(stderr, "uhpd->peers->peer[%d].process_time + uhpd->peers->peer[%d].additional_time > uhpd->peers->peer[%d].process_time+ uhpd->peers->peer[%d].additional_time: ", index,index, i, i);
+//        fprintf(stderr, "%f + %f > %f + %f\n", uhpd->peers->peer[index].process_time, uhpd->peers->peer[index].additional_time, uhpd->peers->peer[i].process_time, uhpd->peers->peer[i].additional_time);
+
+        if(uhpd->peers->peer[index].process_time + uhpd->peers->peer[index].additional_time > uhpd->peers->peer[i].process_time+ uhpd->peers->peer[i].additional_time) // есди за меньшее время, то выбираем меньшее
             index = i;
-        else if(uhpd->peers->peer[index].process_time == uhpd->peers->peer[i].process_time)
-            if(uhpd->peers->peer[index].list->len > uhpd->peers->peer[i].list->len)
-                index = i;
+//        else if(uhpd->peers->peer[index].additional_time == uhpd->peers->peer[i].additional_time) //иначе у кого больше файлов
+//            if(uhpd->peers->peer[index].list->len > uhpd->peers->peer[i].list->len)
+//                index = i;
     }
+    uhpd->peers->peer[index].process_time += uhpd->peers->peer[index].additional_time;
 
     if (0 == checkFreeMemoryEnough(uhpd->peers->peer[index], uhpd->size)) {
         fprintf(stderr, "!have not need free memory\n");
@@ -350,11 +361,21 @@ ngx_http_upstream_get_hash_peer(ngx_peer_connection_t *pc, void *data)
     list_rpush(uhpd->peers->peer[index].list, a);
 
     peer = &uhpd->peers->peer[index];
-    fprintf(stderr, "choose %d\n server with name %s", index, peer->name.data);
+    peer->stats++;
+//    fprintf(stderr, "choose %d\n server with name %s", index, peer->name.data);
 
     pc->sockaddr = peer->sockaddr;
     pc->socklen = peer->socklen;
     pc->name = &peer->name;
+
+///stats
+
+    fprintf(stderr, "---------------------STATS--------------------\n");
+    for(int i = 0; i < (int)uhpd->peers->number; i++)
+    {
+        fprintf(stderr, "server with name %s - %lu\n", uhpd->peers->peer[i].name.data, uhpd->peers->peer[i].stats);
+    }
+    fprintf(stderr, "----------------------------------------------\n");
 
     return NGX_OK;
 }
