@@ -58,7 +58,7 @@ ngx_http_upstream_free_hash_peer(ngx_peer_connection_t *pc, void *data,
  */
 static ngx_command_t ngx_http_upstrm_hash_commands[] = {
 
-    { ngx_string("bum"), /* directive */
+    { ngx_string("custom_balancer"), /* directive */
       NGX_HTTP_UPS_CONF|NGX_CONF_NOARGS, /* location context and takes
                                             no arguments*/
       ngx_http_upstrm_hash, /* configuration setup function */
